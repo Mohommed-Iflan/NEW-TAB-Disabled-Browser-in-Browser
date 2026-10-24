@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Secured Browser Container</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        /* Browser Header / Navigation Bar */
+        .browser-header {
+            background-color: #1e293b;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid #334155;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .browser-controls {
+            display: flex;
+            gap: 6px;
+        }
+        .control-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .dot-close { background-color: #ef4444; }
+        .dot-min { background-color: #f59e0b; }
+        .dot-max { background-color: #10b981; }
+        
+        .address-bar-container {
+            flex: 1;
+            display: flex;
+            background-color: #0f172a;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            padding: 6px 12px;
+            align-items: center;
+            gap: 8px;
+        }
+        .address-bar-container span {
+            color: #94a3b8;
+            font-size: 14px;
+        }
+        .address-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #f8fafc;
+            font-size: 14px;
+            outline: none;
+        }
+        
+        /* Main Workspace */
+        .browser-body {
+            flex: 1;
+            position: relative;
+            background-color: #000;
+            display: flex;
+        }
+        iframe.main-viewport {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: #fff;
+        }
+
+        /* Hidden Background Tab Container (Silently handles popups) */
+        #background-tabs-container {
+            position: absolute;
+            width: 0px;
+            height: 0px;
+            opacity: 0;
+            pointer-events: none;
+            overflow: hidden;
+            border: none;
+        }
+
+        /* Activity Log Panel */
+        .log-panel {
+            width: 300px;
+            background-color: #1e293b;
+            border-left: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+            font-size: 12px;
+        }
+        .log-header {
+            padding: 10px;
+            background-color: #0f172a;
+            font-weight: bold;
+            border-bottom: 1px solid #334155;
+            color: #38bdf8;
+        }
+        .log-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            font-family: monospace;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .log-item {
+            background: rgba(15, 23, 42, 0.6);
+            padding: 6px;
+            border-radius: 4px;
+            border-left: 3px solid #10b981;
+        }
+        .log-time {
+            color: #94a3b8;
+            font-size: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Browser Header with URL bar -->
+    <div class="browser-header">
+        <div class="browser-controls">
+            <div class="control-dot dot-close"></div>
+            <div class="control-dot dot-min"></div>
+            <div class="control-dot dot-max"></div>
+        </div>
+        <div class="address-bar-container">
+            <span>🔒</span>
+            <input type="text" id="urlInput" class="address-input" value="https://benthamizha.dpdns.org/?v=YnlekWdrH" readonly>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="browser-body">
+        <!-- Main Application Viewport -->
+        <iframe id="mainViewport" class="main-viewport" src="https://benthamizha.dpdns.org/?v=YnlekWdrH" allowfullscreen></iframe>
+
+        <!-- Real-time Activity Log Inspector -->
+        <div class="log-panel">
+            <div class="log-header">🛡️ Silent Interceptor Logs</div>
+            <div id="logContent" class="log-content">
+                <div class="log-item">
+                    <div class="log-time">[System Ready]</div>
+                    Browser initialized. Listening for popup triggers...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Container for Background Tab Simulation & 5s Auto-Destruction -->
+    <div id="background-tabs-container"></div>
+
+    <script>
+        const logContent = document.getElementById('logContent');
+        const bgContainer = document.getElementById('background-tabs-container');
+
+        function addLog(message, type = 'success') {
+            const time = new Date().toLocaleTimeString();
+            const item = document.createElement('div');
+            item.className = 'log-item';
+            item.style.borderLeftColor = type === 'success' ? '#10b981' : '#f59e0b';
+            item.innerHTML = `<div class="log-time">[${time}]</div>${message}`;
+            logContent.appendChild(item);
+            logContent.scrollTop = logContent.scrollHeight;
+        }
+
+        // Intercept window.open calls or new tab triggers from the inner frame
+        const originalOpen = window.open;
+        window.open = function(url, target, features) {
+            addLog(`Intercepted popup URL: <b>${url || 'about:blank'}</b>`, 'warn');
+            addLog(`Spawning silent background tab... Auto-closing in 5s.`, 'success');
+
+            // Create a hidden iframe to silently load the popup in the background
+            const bgIframe = document.createElement('iframe');
+            bgIframe.src = url || 'about:blank';
+            bgContainer.appendChild(bgIframe);
+
+            // Automatically destroy the background tab after 5 seconds
+            setTimeout(() => {
+                if (bgIframe && bgIframe.parentNode) {
+                    bgIframe.parentNode.removeChild(bgIframe);
+                    addLog(`Background tab successfully destroyed & cleared.`, 'success');
+                }
+            }, 5000);
+
+            // Return a dummy window reference to prevent errors in target scripts
+            return {
+                closed: false,
+                focus: () => {},
+                blur: () => {},
+                close: () => { bgIframe.remove(); }
+            };
+        };
+
+        // Catch clicks that force target="_blank" globally within this wrapper context
+        document.addEventListener('click', function(e) {
+            const anchor = e.target.closest('a');
+            if (anchor && anchor.target === '_blank') {
+                e.preventDefault();
+                window.open(anchor.href);
+            }
+        }, true);
+    </script>
+</body>
+</html>
